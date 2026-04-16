@@ -9,7 +9,7 @@ export function useHomePageLogic() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const { items: cartItems, addItem, removeItem } = useCartStore();
   const { user } = useAuth(); // বর্তমানে লগইন করা ইউজারের তথ্য
-  const catalogRef = useRef<HTMLDivElement>(null);
+  const catalogRef = useRef<HTMLDivElement | null>(null);
   
   const [userName, setUserName] = useState('');
   const [userLocation, setUserLocation] = useState('');
