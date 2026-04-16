@@ -24,3 +24,13 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+input {
+  color: #1a1a1a !important;
+  /* লেখার রঙ গাঢ় হবে */
+}
+
+input::placeholder {
+  color: #6b7280 !important;
+  /* প্লেসহোল্ডারের রঙ ধূসর হবে */
+  opacity: 1;
+}
