@@ -5,7 +5,7 @@ import { Product } from '@/types/product';
 
 interface ProductSectionProps {
   isVisible: boolean;
-  catalogRef: RefObject<HTMLDivElement>;
+  catalogRef: React.RefObject<HTMLDivElement | null>;
   products: Product[];
   searchTerm: string;
   selectedCategory: string;
