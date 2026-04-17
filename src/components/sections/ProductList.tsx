@@ -13,39 +13,47 @@ interface ProductListProps {
 }
 
 const ProductList = ({ 
-  products, 
-  searchTerm, 
-  selectedCategory, 
+  products = [], // ডিফল্ট খালি অ্যারে যাতে এরর না হয়
+  searchTerm = "", // ডিফল্ট খালি স্ট্রিং
+  selectedCategory = "All", 
   onAdd, 
   setSearchTerm, 
   setSelectedCategory,
   currentUser 
 }: ProductListProps) => {
 
+  // ১. ইউনিক ক্যাটাগরি লিস্ট তৈরি (Space-safe)
   const categories = useMemo(() => {
-    const uniqueCategories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
+    const uniqueCategories = Array.from(
+      new Set(products.map(p => p.category?.trim()).filter(Boolean))
+    );
     return ['All', ...uniqueCategories];
   }, [products]);
 
+  // ২. ফিল্টারিং লজিক আপডেট (Safely handling undefined/null values)
   const filteredProducts = products.filter((product) => {
-    const productName = product.name_en?.toLowerCase() || "";
-    const search = searchTerm.toLowerCase();
+    // পজিটিভ চেক: ভ্যালু না থাকলে খালি স্ট্রিং ধরবে
+    const productName = (product.name_en || "").toLowerCase();
+    const search = (searchTerm || "").toLowerCase();
     const matchesSearch = productName.includes(search);
     
+    const currentCategory = (product.category || "").trim();
+    const targetCategory = (selectedCategory || "All").trim();
+
     const matchesCategory = 
-      selectedCategory === 'All' || 
-      selectedCategory === '' ||
-      product.category?.trim().toLowerCase() === selectedCategory.trim().toLowerCase();
+      targetCategory === 'All' || 
+      targetCategory === '' ||
+      currentCategory.toLowerCase() === targetCategory.toLowerCase();
       
     return matchesSearch && matchesCategory;
   });
 
-  // --- B2B Logic (ধাপ ১ ও ৪): ইউজার B2B হলে b2b_price রিটার্ন করবে ---
+  // ৩. বিটুবি প্রাইস লজিক (Number conversion safety)
   const getFinalPrice = (product: Product) => {
     if (currentUser?.is_b2b && product.b2b_price) {
-      return Number(product.b2b_price);
+      return Number(product.b2b_price) || 0;
     }
-    return Number(product.price);
+    return Number(product.price) || 0;
   };
 
   return (
@@ -68,11 +76,11 @@ const ProductList = ({
         {categories.map((cat) => (
           <button
             key={cat}
-            onClick={() => setSelectedCategory(cat!)}
-            className={`px-5 py-2 rounded-full text-xs font-bold uppercase transition-all ${
-              selectedCategory.toLowerCase() === (cat?.toLowerCase() || '')
+            onClick={() => setSelectedCategory(cat || 'All')}
+            className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+              (selectedCategory || 'All').trim().toLowerCase() === (cat?.trim().toLowerCase() || '')
                 ? 'bg-green-600 text-white shadow-lg scale-105'
-                : 'bg-white text-gray-500 border border-gray-100 hover:bg-gray-50'
+                : 'bg-white text-gray-400 border border-gray-100 hover:bg-gray-50 shadow-sm'
             }`}
           >
             {cat}
@@ -84,14 +92,14 @@ const ProductList = ({
       <div className="mb-12 max-w-md mx-auto relative group">
         <input
           type="text"
-          placeholder={`Search products...`}
-          className="w-full p-4 pl-12 rounded-full border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-          value={searchTerm}
+          placeholder="Search products..."
+          className="w-full p-4 pl-12 rounded-2xl border border-gray-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white transition-all text-gray-800"
+          value={searchTerm || ""}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
-        <div className="absolute left-4 top-4 text-gray-400">
+        <div className="absolute left-4 top-4 text-gray-300">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
       </div>
@@ -104,12 +112,11 @@ const ProductList = ({
             const isB2B = currentUser?.is_b2b && product.b2b_price;
 
             return (
-              <div key={product.id} className="bg-white rounded-[2rem] overflow-hidden shadow-sm hover:shadow-2xl border border-gray-50 group transition-all duration-300 flex flex-col h-full relative">
+              <div key={product.id} className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-2xl border border-gray-100/50 group transition-all duration-500 flex flex-col h-full relative">
                 
-                {/* B2B Badge (ধাপ ৩) */}
                 {isB2B && (
-                  <div className="absolute top-4 left-4 z-10 bg-green-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg">
-                    B2B SPECIAL
+                  <div className="absolute top-4 left-4 z-10 bg-green-600 text-white text-[9px] font-black px-3 py-1.5 rounded-full shadow-lg tracking-widest uppercase animate-bounce">
+                    B2B Deal
                   </div>
                 )}
 
@@ -117,32 +124,30 @@ const ProductList = ({
                   {product.image_url ? (
                     <img src={product.image_url} alt={product.name_en} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300 bg-gray-100 italic font-black">SeaLand</div>
+                    <div className="w-full h-full flex items-center justify-center text-gray-200 bg-gray-50 italic font-black text-xs uppercase text-center p-4">SeaLand Agro</div>
                   )}
                 </div>
 
-                <div className="p-4 md:p-6 flex flex-col flex-1">
-                  <h3 className="text-base font-bold text-gray-800 mb-1 line-clamp-1">{product.name_en}</h3>
-                  <p className="text-gray-400 text-[10px] mb-3">{product.name_bn || 'Fresh Produce'}</p>
+                <div className="p-5 md:p-6 flex flex-col flex-1">
+                  <h3 className="text-sm font-black text-gray-800 mb-1 line-clamp-1 uppercase tracking-tight">{product.name_en}</h3>
+                  <p className="text-gray-400 text-[10px] mb-4 font-bold">{product.name_bn || 'Fresh Produce'}</p>
                   
-                  {/* Visual Comparison & Price (ধাপ ২) */}
                   <div className="flex flex-col mb-6">
                     <div className="flex items-center gap-2">
                       <span className="text-xl font-black text-gray-900">৳{finalPrice}</span>
-                      <span className="text-gray-400 text-xs">/ {product.unit}</span>
+                      <span className="text-gray-400 text-[10px] font-bold uppercase">/ {product.unit}</span>
                     </div>
                     {isB2B && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-gray-400 line-through">Retail: ৳{product.price}</span>
-                        <span className="text-[10px] text-green-600 font-bold">Save ৳{Number(product.price) - Number(product.b2b_price)}</span>
+                      <div className="flex items-center gap-2 mt-1 bg-green-50 p-1.5 rounded-lg border border-green-100 w-fit">
+                        <span className="text-[10px] text-gray-400 line-through font-bold">৳{product.price}</span>
+                        <span className="text-[10px] text-green-600 font-black tracking-tighter uppercase">Save ৳{Number(product.price) - Number(product.b2b_price)}</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Order Logic (ধাপ ৪): onAdd এ আপডেট করা প্রাইস পাঠানো হচ্ছে */}
                   <button 
                     onClick={() => onAdd({ ...product, price: finalPrice })} 
-                    className="w-full mt-auto py-3 rounded-2xl font-bold bg-gray-900 text-white hover:bg-green-600 active:scale-95 transition-all shadow-md"
+                    className="w-full mt-auto py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest bg-gray-900 text-white hover:bg-green-600 active:scale-95 transition-all shadow-xl shadow-gray-200"
                   >
                     Add to Quote
                   </button>
@@ -152,9 +157,9 @@ const ProductList = ({
           })}
         </div>
       ) : (
-        <div className="py-20 text-center">
-          <p className="text-gray-500 italic">No items found in this category.</p>
-          <button onClick={() => setSelectedCategory('All')} className="mt-4 text-green-600 font-bold underline">Show All Products</button>
+        <div className="py-20 text-center bg-gray-50 rounded-[3rem] border-2 border-dashed border-gray-100">
+          <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No items found.</p>
+          <button onClick={() => setSelectedCategory('All')} className="mt-4 text-green-600 font-black uppercase text-[10px] tracking-widest hover:underline">Show All Products</button>
         </div>
       )}
     </div>

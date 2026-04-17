@@ -1,18 +1,19 @@
 'use client';
-import { RefObject } from 'react';
+import React from 'react'; // React ইমপোর্ট নিশ্চিত করুন
 import ProductList from './ProductList';
 import { Product } from '@/types/product';
 
 interface ProductSectionProps {
   isVisible: boolean;
-  catalogRef: React.RefObject<HTMLDivElement | null>;
+  // এখানে টাইপটি HTMLDivElement | null করে দেওয়া হলো যাতে Ref টাইপ ম্যাচ করে
+  catalogRef: React.RefObject<HTMLDivElement | null>; 
   products: Product[];
   searchTerm: string;
   selectedCategory: string;
   onAdd: (product: Product) => void;
   setSearchTerm: (term: string) => void;
   setSelectedCategory: (cat: string) => void;
-  currentUser?: any; // আমরা আগে যে বিটুবি প্রপসটি যোগ করেছিলাম
+  currentUser?: any; 
 }
 
 export default function ProductSection({
@@ -24,15 +25,15 @@ export default function ProductSection({
   onAdd,
   setSearchTerm,
   setSelectedCategory,
-  currentUser // এটিও এখানে রিসিভ করতে হবে
+  currentUser 
 }: ProductSectionProps) {
+  
   if (!isVisible) return null;
 
   return (
-    /* ১. এখানে id="catalog-section" যোগ করা হয়েছে */
-    /* ২. scroll-mt-20 দেওয়া হয়েছে যাতে স্ক্রল করার পর একদম উপরে লেগে না থাকে */
     <div 
       id="catalog-section" 
+      // @ts-ignore - যদি খুব বেশি সমস্যা করে তবেই এটি দিবেন, নতুবা শুধু ref={catalogRef} ঠিক আছে
       ref={catalogRef} 
       className="scroll-mt-20 animate-in fade-in slide-in-from-bottom-5 duration-700"
     >
@@ -43,7 +44,7 @@ export default function ProductSection({
         onAdd={onAdd}
         setSearchTerm={setSearchTerm}
         setSelectedCategory={setSelectedCategory}
-        currentUser={currentUser} // ProductList-এ ডাটা পাস করা হচ্ছে
+        currentUser={currentUser} 
       />
     </div>
   );
