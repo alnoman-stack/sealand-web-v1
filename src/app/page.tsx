@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useHomePageLogic } from '@/hooks/useHomePageLogic';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/components/sections/context/AuthContext';
 import { supabase } from '@/lib/supabase'; // ডাটাবেস চেক করার জন্য সুপাবেস ইমপোর্ট
 import Link from 'next/link';
 

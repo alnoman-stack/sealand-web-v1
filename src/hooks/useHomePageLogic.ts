@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Product } from '@/types/product';
 import { useCartStore } from '@/store/useCartStore';
-import { useAuth } from '@/context/AuthContext'; // AuthContext থেকে ইউজার ডাটা আনা
+import { useAuth } from '@/components/sections/context/AuthContext'; // AuthContext থেকে ইউজার ডাটা আনা
 
 export function useHomePageLogic() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
