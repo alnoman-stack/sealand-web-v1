@@ -12,8 +12,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     const checkAdminAndFetch = async () => {
       setLoading(true);
-      
-      // ১. সিকিউরিটি চেক: ডাটাবেস থেকে রোল চেক করা
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -23,21 +21,18 @@ export default function AdminDashboard() {
 
       setCurrentUserEmail(user.email || null);
 
-      // প্রোফাইল টেবিল থেকে রোল নিয়ে আসা
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single();
 
-      // চেক: রোল যদি admin বা staff না হয় তবে বের করে দিবে
       if (profileError || (profile?.role !== 'admin' && profile?.role !== 'staff')) {
         alert("Unauthorized Access! শুধুমাত্র এডমিনরা এখানে প্রবেশ করতে পারবেন।");
         router.push('/');
         return;
       }
 
-      // ২. পেন্ডিং রিকোয়েস্টগুলো লোড করা
       const { data, error } = await supabase
         .from('b2b_requests')
         .select('*')
@@ -51,7 +46,6 @@ export default function AdminDashboard() {
     checkAdminAndFetch();
   }, [router]);
 
-  // এপ্রুভ করার ফাংশন
   const handleApprove = async (email: string, name: string) => {
     const confirmApprove = confirm(`Are you sure you want to approve ${name} (${email})?`);
     if (!confirmApprove) return;
