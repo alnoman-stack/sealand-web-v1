@@ -73,7 +73,7 @@ export default function SignUpPage() {
             <div className="relative group">
               <div className="absolute -inset-1 bg-gradient-to-r from-green-500 to-emerald-400 rounded-[2rem] blur opacity-25 group-hover:opacity-60 transition duration-500"></div>
               <div className="relative bg-white px-6 py-4 rounded-[1.8rem] border border-gray-100 shadow-xl flex items-center justify-center">
-                 <img src="icon.png" alt="SeaLand Agro Logo" className="h-16 md:h-20 w-auto object-contain" />
+                 <img src="icon.png" alt="SeaLand Agroo Logo" className="h-16 md:h-20 w-auto object-contain" />
               </div>
             </div>
           </Link>
