@@ -47,7 +47,7 @@ export default function SupportPage() {
               <span className="text-xl">📞</span>
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-gray-300 font-bold">Call Us / WhatsApp</p>
-                <p className="text-base sm:text-lg font-mono font-bold">+880 1714-514396</p>
+                <p className="text-base sm:text-lg font-mono font-bold">+880 1714-114396</p>
               </div>
             </div>
 
@@ -62,7 +62,7 @@ export default function SupportPage() {
 
           <div className="flex flex-col items-center justify-center bg-white text-black p-6 rounded-3xl shadow-xl w-full md:w-auto text-center">
             <a 
-              href="https://wa.me/8801714514396" 
+              href="https://wa.me/8801714114396" 
               target="_blank" 
               rel="noopener noreferrer"
               className="w-full sm:w-auto px-8 py-4 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-green-500/30 mb-3 flex items-center justify-center gap-2"
