@@ -59,7 +59,7 @@ export default function Navbar({ onExplore }: NavbarProps) {
 
   return (
     <>
-      {/* ব্যাকড্রপ ওভারলে স্মুথ ট্রানজিশন সহ */}
+      {/* ব্যাকড্রপ ওভারলে */}
       <div 
         className={`fixed inset-0 bg-black/80 backdrop-blur-md z-[60] transition-opacity duration-500 ease-in-out ${
           isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -145,8 +145,9 @@ export default function Navbar({ onExplore }: NavbarProps) {
                 </Link>
               )}
 
+              {/* মার্কেট ফিড পেজের সঠিক লিংক */}
               <Link 
-                href="/dashboard?tab=market" 
+                href="/market-feed" 
                 onClick={() => setIsOpen(false)} 
                 className="group flex items-center justify-between p-3.5 rounded-2xl hover:bg-white/5 text-gray-300 hover:text-white transition-all border border-transparent hover:border-white/5"
               >

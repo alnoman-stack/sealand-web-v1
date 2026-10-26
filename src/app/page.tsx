@@ -18,6 +18,7 @@ import Footer from '@/components/sections/Footer';
 import CartDrawer from '@/components/cart/CartDrawer';
 import CartIcon from '@/components/cart/CartIcon';
 
+
 export default function HomePage() {
   const logic = useHomePageLogic();
   const { user, loading: authLoading } = useAuth();
