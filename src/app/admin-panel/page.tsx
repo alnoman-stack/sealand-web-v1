@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 export default function AdminDashboard() {
   const [requests, setRequests] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [activeAdminTab, setActiveAdminTab] = useState<'partners' | 'orders'>('partners');
+  const [tickets, setTickets] = useState<any[]>([]); // সাপোর্ট টিকিটের স্টেট
+  const [activeAdminTab, setActiveAdminTab] = useState<'partners' | 'orders' | 'tickets'>('partners');
   const [loading, setLoading] = useState(true);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const router = useRouter();
@@ -44,13 +45,22 @@ export default function AdminDashboard() {
       
       setRequests(reqData || []);
 
-      // ২. সব অর্ডার বা ইনভয়েস ফেচ করা (স্ট্যাটাস ম্যানেজমেন্টের জন্য)
+      // ২. সব অর্ডার বা ইনভয়েস ফেচ করা
       const { data: invData } = await supabase
         .from('invoices')
         .select('*')
         .order('created_at', { ascending: false });
 
       setInvoices(invData || []);
+
+      // ৩. কাস্টমার সাপোর্ট ও কমপ্লেন টিকিট ফেচ করা
+      const { data: ticketData } = await supabase
+        .from('support_tickets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      setTickets(ticketData || []);
+
       setLoading(false);
     };
 
@@ -71,7 +81,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // অর্ডারের স্ট্যাটাস আপডেট করার ফাংশন (pending, processing, shipped, delivered)
+  // অর্ডারের স্ট্যাটাস আপডেট করার ফাংশন
   const handleStatusChange = async (invoiceId: string, newStatus: string) => {
     const { error } = await supabase
       .from('invoices')
@@ -86,6 +96,21 @@ export default function AdminDashboard() {
     }
   };
 
+  // সাপোর্ট টিকিটের স্ট্যাটাস আপডেট করার ফাংশন
+  const handleTicketStatusChange = async (ticketId: string, newStatus: string) => {
+    const { error } = await supabase
+      .from('support_tickets')
+      .update({ status: newStatus })
+      .eq('id', ticketId);
+
+    if (error) {
+      alert("Failed to update ticket: " + error.message);
+    } else {
+      setTickets(tickets.map(t => t.id === ticketId ? { ...t, status: newStatus } : t));
+      alert(`Ticket status updated to "${newStatus}"!`);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-12 font-sans">
       <div className="max-w-7xl mx-auto">
@@ -94,7 +119,7 @@ export default function AdminDashboard() {
             <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter uppercase">
               SeaLand <span className="text-green-600">ERP & Admin</span>
             </h1>
-            <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Supply Chain & Order Management</p>
+            <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Supply Chain & Support Management</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
@@ -111,7 +136,7 @@ export default function AdminDashboard() {
         </header>
 
         {/* ট্যাব সিলেকশন */}
-        <div className="flex gap-3 mb-6">
+        <div className="flex flex-wrap gap-3 mb-6">
           <button 
             onClick={() => setActiveAdminTab('partners')}
             className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${
@@ -126,7 +151,15 @@ export default function AdminDashboard() {
               activeAdminTab === 'orders' ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : 'bg-white text-gray-500 border border-gray-200'
             }`}
           >
-            📦 B2B Orders & Status Control ({invoices.length})
+            📦 B2B Orders ({invoices.length})
+          </button>
+          <button 
+            onClick={() => setActiveAdminTab('tickets')}
+            className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${
+              activeAdminTab === 'tickets' ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : 'bg-white text-gray-500 border border-gray-200'
+            }`}
+          >
+            🎫 Support & Complaints ({tickets.length})
           </button>
         </div>
 
@@ -140,7 +173,7 @@ export default function AdminDashboard() {
               </span>
             </div>
 
-            <div className="max-h-[450px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="max-h-[450px] overflow-y-auto">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] sticky top-0 z-10 backdrop-blur-md">
                   <tr>
@@ -152,21 +185,15 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {loading ? (
-                    <tr>
-                      <td colSpan={4} className="p-20 text-center text-gray-400 font-bold uppercase text-xs">Syncing with database...</td>
-                    </tr>
+                    <tr><td colSpan={4} className="p-20 text-center text-gray-400 font-bold uppercase text-xs">Syncing...</td></tr>
                   ) : requests.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="p-20 text-center text-gray-300 font-black uppercase tracking-widest text-xs">No pending requests at the moment</td>
-                    </tr>
+                    <tr><td colSpan={4} className="p-20 text-center text-gray-300 font-black uppercase tracking-widest text-xs">No pending requests</td></tr>
                   ) : (
                     requests.map((req) => (
                       <tr key={req.id} className="hover:bg-green-50/30 transition-all">
                         <td className="px-6 md:px-8 py-5">
                           <p className="font-black text-gray-800 uppercase text-sm">{req.company_name}</p>
-                          <span className="inline-block mt-1 text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-black uppercase">
-                            {req.business_type}
-                          </span>
+                          <span className="inline-block mt-1 text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-black uppercase">{req.business_type}</span>
                         </td>
                         <td className="px-6 md:px-8 py-5">
                           <p className="font-bold text-gray-700 text-sm">{req.contact_person}</p>
@@ -175,19 +202,136 @@ export default function AdminDashboard() {
                         <td className="px-6 md:px-8 py-5 font-medium text-gray-500 text-sm">{req.email}</td>
                         <td className="px-6 md:px-8 py-5 text-right">
                           <div className="flex gap-2 justify-end">
-                            <button 
-                              onClick={() => handleApprove(req.email, req.company_name)}
-                              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md"
+                            <button onClick={() => handleApprove(req.email, req.company_name)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md">Approve</button>
+                            <a href={`https://wa.me/${req.phone?.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="bg-gray-900 hover:bg-black text-white px-3 py-2 rounded-xl font-black text-[10px]">💬 WA</a>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ২. অর্ডার ম্যানেজমেন্ট ট্যাব */}
+        {activeAdminTab === 'orders' && (
+          <div className="bg-white rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+            <div className="p-6 md:p-8 border-b border-gray-50 flex justify-between items-center bg-white">
+              <h2 className="text-lg md:text-xl font-black text-gray-800 uppercase tracking-tight">B2B Orders & Status Control</h2>
+              <span className="bg-blue-50 text-blue-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">{invoices.length} Orders</span>
+            </div>
+
+            <div className="max-h-[480px] overflow-y-auto">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] sticky top-0 z-10 backdrop-blur-md">
+                  <tr>
+                    <th className="px-6 md:px-8 py-5">Invoice No</th>
+                    <th className="px-6 md:px-8 py-5">Customer / Outlet</th>
+                    <th className="px-6 md:px-8 py-5">Amount</th>
+                    <th className="px-6 md:px-8 py-5">Status</th>
+                    <th className="px-6 md:px-8 py-5 text-right">Change Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 text-xs font-medium">
+                  {invoices.length === 0 ? (
+                    <tr><td colSpan={5} className="p-20 text-center text-gray-400 font-bold uppercase">No orders found.</td></tr>
+                  ) : (
+                    invoices.map((inv) => (
+                      <tr key={inv.id} className="hover:bg-gray-50/50 transition-all">
+                        <td className="px-6 md:px-8 py-5 font-mono font-bold text-gray-700">{inv.invoice_number}</td>
+                        <td className="px-6 md:px-8 py-5 font-bold text-gray-900">{inv.customer_name}</td>
+                        <td className="px-6 md:px-8 py-5 font-black text-green-600">৳{Number(inv.total_amount || 0).toLocaleString()}</td>
+                        <td className="px-6 md:px-8 py-5">
+                          <span className="px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-wider bg-gray-100 text-gray-800 border">{inv.status || 'pending'}</span>
+                        </td>
+                        <td className="px-6 md:px-8 py-5 text-right">
+                          <select 
+                            value={inv.status || 'pending'}
+                            onChange={(e) => handleStatusChange(inv.id, e.target.value)}
+                            className="bg-gray-100 border text-gray-800 text-[10px] font-black uppercase p-2 rounded-xl outline-none cursor-pointer"
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="processing">Processing</option>
+                            <option value="shipped">Shipped</option>
+                            <option value="delivered">Delivered</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ৩. সাপোর্ট টিকিট ও কমপ্লেন ট্যাব (নতুন যোগ করা হয়েছে) */}
+        {activeAdminTab === 'tickets' && (
+          <div className="bg-white rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+            <div className="p-6 md:p-8 border-b border-gray-50 flex justify-between items-center bg-white">
+              <h2 className="text-lg md:text-xl font-black text-gray-800 uppercase tracking-tight">Customer Support & Complaints</h2>
+              <span className="bg-green-50 text-green-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">{tickets.length} Tickets</span>
+            </div>
+
+            <div className="max-h-[480px] overflow-y-auto">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] sticky top-0 z-10 backdrop-blur-md">
+                  <tr>
+                    <th className="px-6 md:px-8 py-5">Ticket ID & Type</th>
+                    <th className="px-6 md:px-8 py-5">Client & Company</th>
+                    <th className="px-6 md:px-8 py-5">Subject & Message</th>
+                    <th className="px-6 md:px-8 py-5">Status</th>
+                    <th className="px-6 md:px-8 py-5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 text-xs font-medium">
+                  {tickets.length === 0 ? (
+                    <tr><td colSpan={5} className="p-20 text-center text-gray-400 font-bold uppercase">No support tickets found.</td></tr>
+                  ) : (
+                    tickets.map((ticket) => (
+                      <tr key={ticket.id} className="hover:bg-gray-50/50 transition-all align-top">
+                        <td className="px-6 md:px-8 py-5">
+                          <p className="font-mono font-bold text-green-600">{ticket.ticket_id}</p>
+                          <span className="inline-block mt-1 text-[9px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-black uppercase">{ticket.ticket_type}</span>
+                        </td>
+                        <td className="px-6 md:px-8 py-5">
+                          <p className="font-bold text-gray-900">{ticket.client_name}</p>
+                          <p className="text-[10px] text-gray-500">{ticket.company_name || 'N/A'}</p>
+                          <p className="text-[10px] text-green-700 font-mono font-bold">{ticket.phone}</p>
+                        </td>
+                        <td className="px-6 md:px-8 py-5 max-w-xs">
+                          <p className="font-bold text-gray-800">{ticket.subject}</p>
+                          <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">{ticket.message}</p>
+                        </td>
+                        <td className="px-6 md:px-8 py-5">
+                          <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border ${
+                            ticket.status === 'RESOLVED' ? 'bg-green-100 text-green-800 border-green-200' :
+                            ticket.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                            'bg-yellow-100 text-yellow-800 border-yellow-200'
+                          }`}>
+                            {ticket.status || 'OPEN'}
+                          </span>
+                        </td>
+                        <td className="px-6 md:px-8 py-5 text-right">
+                          <div className="flex flex-col gap-2 items-end">
+                            <select 
+                              value={ticket.status || 'OPEN'}
+                              onChange={(e) => handleTicketStatusChange(ticket.id, e.target.value)}
+                              className="bg-gray-100 border text-gray-800 text-[10px] font-black uppercase p-2 rounded-xl outline-none cursor-pointer"
                             >
-                              Approve
-                            </button>
+                              <option value="OPEN">Open</option>
+                              <option value="IN_PROGRESS">In Progress</option>
+                              <option value="RESOLVED">Resolved</option>
+                            </select>
                             <a 
-                              href={`https://wa.me/${req.phone?.replace(/[^0-9]/g, '')}?text=Hello ${req.contact_person}, your B2B partnership request for ${req.company_name} has been approved!`}
+                              href={`https://wa.me/${ticket.phone?.replace(/[^0-9]/g, '')}?text=Hello ${ticket.client_name}, regarding your support ticket ${ticket.ticket_id}: `}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="bg-gray-900 hover:bg-black text-white px-3 py-2 rounded-xl font-black text-[10px] uppercase"
+                              className="text-[10px] font-bold text-green-600 hover:underline"
                             >
-                              💬 WA
+                              💬 Reply on WhatsApp
                             </a>
                           </div>
                         </td>
@@ -200,69 +344,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ২. অর্ডার ও স্ট্যাটাস ম্যানেজমেন্ট ট্যাব (কার্ডের ভেতরে স্ক্রলযোগ্য টেবিল) */}
-        {activeAdminTab === 'orders' && (
-          <div className="bg-white rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
-            <div className="p-6 md:p-8 border-b border-gray-50 flex justify-between items-center bg-white">
-              <h2 className="text-lg md:text-xl font-black text-gray-800 uppercase tracking-tight">B2B Orders & Status Control</h2>
-              <span className="bg-blue-50 text-blue-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">
-                {invoices.length} Total Orders
-              </span>
-            </div>
-
-            {/* কার্ডের ভেতরে ডেটা স্ক্রল করার জন্য max-height ও overflow-y-auto দেওয়া হয়েছে */}
-            <div className="max-h-[480px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] sticky top-0 z-10 backdrop-blur-md">
-                  <tr>
-                    <th className="px-6 md:px-8 py-5">Invoice No</th>
-                    <th className="px-6 md:px-8 py-5">Customer / Outlet</th>
-                    <th className="px-6 md:px-8 py-5">Amount</th>
-                    <th className="px-6 md:px-8 py-5">Current Status</th>
-                    <th className="px-6 md:px-8 py-5 text-right">Change Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 text-xs font-medium">
-                  {invoices.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-20 text-center text-gray-400 font-bold uppercase">No orders found.</td>
-                    </tr>
-                  ) : (
-                    invoices.map((inv) => (
-                      <tr key={inv.id} className="hover:bg-gray-50/50 transition-all">
-                        <td className="px-6 md:px-8 py-5 font-mono font-bold text-gray-700">{inv.invoice_number}</td>
-                        <td className="px-6 md:px-8 py-5 font-bold text-gray-900">{inv.customer_name}</td>
-                        <td className="px-6 md:px-8 py-5 font-black text-green-600">৳{Number(inv.total_amount || 0).toLocaleString()}</td>
-                        <td className="px-6 md:px-8 py-5">
-                          <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border ${
-                            inv.status?.toLowerCase() === 'delivered' ? 'bg-green-100 text-green-800 border-green-200' :
-                            inv.status?.toLowerCase() === 'shipped' ? 'bg-purple-100 text-purple-800 border-purple-200' :
-                            inv.status?.toLowerCase() === 'processing' ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                            'bg-yellow-100 text-yellow-800 border-yellow-200'
-                          }`}>
-                            {inv.status || 'pending'}
-                          </span>
-                        </td>
-                        <td className="px-6 md:px-8 py-5 text-right">
-                          <select 
-                            value={inv.status || 'pending'}
-                            onChange={(e) => handleStatusChange(inv.id, e.target.value)}
-                            className="bg-gray-100 border border-gray-200 text-gray-800 text-[10px] font-black uppercase tracking-wider p-2 rounded-xl outline-none focus:border-green-500 cursor-pointer"
-                          >
-                            <option value="pending">Pending (Editable)</option>
-                            <option value="processing">Processing (Locked)</option>
-                            <option value="shipped">Shipped (Locked)</option>
-                            <option value="delivered">Delivered (Locked)</option>
-                          </select>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
