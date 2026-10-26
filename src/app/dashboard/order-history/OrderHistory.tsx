@@ -16,9 +16,12 @@ export default function OrderHistory() {
   const { user } = useAuth();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false); 
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false); 
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
-  // POS / Create Invoice States
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,7 +29,12 @@ export default function OrderHistory() {
   const [posTab, setPosTab] = useState<'inventory' | 'billing'>('inventory');
   const [customerAddress, setCustomerAddress] = useState('');
 
-  // ১. ইনভয়েস ফেচ করা (স্মার্ট ফিল্টারিং: ইউজার আইডি অথবা ইউজার নেম/ইমেইল দিয়ে ম্যাচ করা)
+  // সংখ্যাকে কথায় রূপান্তর করার ছোট ফাংশন
+  const numberToWords = (num: number): string => {
+    if (isNaN(num) || num === 0) return 'Zero Taka Only';
+    return `${num.toLocaleString()} Taka Only`;
+  };
+
   const fetchInvoices = async () => {
     if (!user) {
       setLoading(false);
@@ -35,17 +43,14 @@ export default function OrderHistory() {
     }
 
     setLoading(true);
-
     const userName = user.user_metadata?.full_name || user.email?.split('@')[0];
 
-    // সুপাবেস থেকে বর্তমান ইউজারের id অথবা নাম দিয়ে ফিল্টার করা
     let query = supabase
       .from('invoices')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (user.id) {
-      // যদি customer_id অথবা customer_name ম্যাচ করে
       if (userName) {
         query = query.or(`customer_id.eq.${user.id},customer_name.ilike.%${userName}%`);
       } else {
@@ -58,23 +63,48 @@ export default function OrderHistory() {
     if (error) {
       console.error("Database Connection Error:", error.message);
     } else if (data) {
-      setInvoices(data);
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+
+      const currentMonthInvoices = data.filter((item: any) => {
+        if (!item.created_at) return false;
+        const invDate = new Date(item.created_at);
+        return invDate.getFullYear() === currentYear && invDate.getMonth() === currentMonth;
+      });
+
+      setInvoices(currentMonthInvoices);
     }
     setLoading(false);
   };
 
-  // ২. ইনভেন্টরি ও ইউজারের ঠিকানা লোড করা (POSModal খোলার সময়)
+  const handleViewDetails = async (invoice: any) => {
+    setSelectedInvoice(invoice);
+    setIsDetailModalOpen(true);
+    setLoadingDetails(true);
+
+    const { data, error } = await supabase
+      .from('invoice_items')
+      .select('*')
+      .eq('invoice_id', invoice.id);
+
+    if (data && !error) {
+      setInvoiceItems(data);
+    } else {
+      setInvoiceItems([]);
+    }
+    setLoadingDetails(false);
+  };
+
   const loadPOSData = async () => {
     if (!user) return;
 
-    // প্রোডাক্টস লোড
     const { data: prodData } = await supabase
       .from('products')
       .select('*')
       .order('name_en', { ascending: true });
     if (prodData) setProducts(prodData);
 
-    // আগের অর্ডারের ঠিকানা অটো-লোড
     const { data: lastInvoice } = await supabase
       .from('invoices')
       .select('customer_address')
@@ -101,7 +131,6 @@ export default function OrderHistory() {
     loadPOSData();
   };
 
-  // Cart Functions
   const addToCart = (product: Product) => {
     if (product.current_stock <= 0) {
       alert("Stock out!");
@@ -121,7 +150,7 @@ export default function OrderHistory() {
   };
 
   const updateQuantity = (id: string, newQty: number) => {
-    if (newQty < 1) return;
+    if (isNaN(newQty) || newQty < 1) return;
     setCart(cart.map(item => item.id === id ? { ...item, qty: newQty } : item));
   };
 
@@ -129,9 +158,8 @@ export default function OrderHistory() {
     setCart(cart.filter(item => item.id !== id));
   };
 
-  const totalAmount = cart.reduce((acc, item) => acc + (item.active_price * item.qty), 0);
+  const totalAmount = cart.reduce((acc, item) => acc + (item.active_price * (Number(item.qty) || 0)), 0);
 
-  // Finalize B2B Order
   const handleFinalizeAndSave = async () => {
     if (cart.length === 0) return alert("Please add items to your invoice!");
     if (!customerAddress.trim()) return alert("দয়া করে ডেলিভারি ঠিকানা দিন!");
@@ -141,7 +169,6 @@ export default function OrderHistory() {
     try {
       const invoiceNo = `INV-${Math.floor(100000 + Math.random() * 900000)}`;
 
-      // ১. ইনভয়েস টেবিল এন্ট্রি
       const { data: invoiceData, error: invError } = await supabase
         .from('invoices')
         .insert([{ 
@@ -160,7 +187,6 @@ export default function OrderHistory() {
 
       if (invError) throw invError;
 
-      // ২. ইনভয়েস আইটেম এবং স্টক আপডেট
       const itemPromises = cart.map(async (item) => {
         await supabase.from('invoice_items').insert({
           invoice_id: invoiceData.id,
@@ -185,7 +211,6 @@ export default function OrderHistory() {
 
       await Promise.all(itemPromises);
 
-      // ৩. ইউজারের প্রোফাইলে total_spending আপডেট
       if (user?.id) {
         const { data: currentProfile } = await supabase
           .from('profiles')
@@ -216,41 +241,199 @@ export default function OrderHistory() {
   return (
     <div className="space-y-6">
       
-      {/* FAST INVOICE ENTRY BANNER */}
-      <div className="flex flex-col md:flex-row justify-between items-center bg-green-500/5 border border-green-500/10 p-6 rounded-[25px] md:rounded-[35px] gap-4">
-        <div className="text-center md:text-left">
-          <h3 className="text-lg font-black uppercase text-green-500 leading-none mb-1">Fast Invoice Entry</h3>
-          <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Sync with SeaLand ERP System</p>
-        </div>
-        <button 
-          onClick={handleOpenCreateInvoice}
-          className="w-full md:w-auto px-10 py-4 bg-green-500 text-black rounded-xl md:rounded-full font-black text-xs uppercase hover:scale-105 transition-all shadow-lg shadow-green-500/20"
-        >
-          + Create Invoice
-        </button>
+      {/* INVOICES LIST TABLE */}
+      <div className="border border-white/5 rounded-[20px] sm:rounded-[25px] bg-white/[0.01] overflow-hidden">
+        {loading ? (
+          <div className="p-8 sm:p-10 text-center text-gray-500 text-[10px] uppercase tracking-widest">
+            Syncing with SeaLand ERP...
+          </div>
+        ) : invoices.length === 0 ? (
+          <div className="p-8 sm:p-10 text-center text-gray-500 text-[10px] uppercase tracking-widest leading-loose">
+            No records found for the current month. <br/>
+            <span className="text-[8px] opacity-50">Click "+ CREATE INVOICE" above to add your first entry.</span>
+          </div>
+        ) : (
+          <div className="max-h-[300px] overflow-x-auto overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <table className="w-full text-left border-collapse min-w-[600px] sm:min-w-full">
+              <thead className="bg-white/5 text-[8px] sm:text-[9px] uppercase font-black tracking-widest text-gray-500 border-b border-white/5 sticky top-0 z-10 backdrop-blur-md">
+                <tr>
+                  <th className="p-4 sm:p-6 whitespace-nowrap">Invoice No.</th>
+                  <th className="p-4 sm:p-6">Customer / Outlet</th>
+                  <th className="p-4 sm:p-6">Total Amount</th>
+                  <th className="p-4 sm:p-6">Status</th>
+                  <th className="p-4 sm:p-6">Date</th>
+                  <th className="p-4 sm:p-6 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="text-[11px] sm:text-[12px] font-medium">
+                {invoices.map((item) => (
+                  <tr key={item.id} className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
+                    <td className="p-4 sm:p-6 font-mono text-gray-300 whitespace-nowrap">
+                      {item.invoice_number || `#INV-${item.id}`}
+                    </td>
+                    <td className="p-4 sm:p-6 font-bold text-white">
+                      {item.customer_name || 'N/A'}
+                    </td>
+                    <td className="p-4 sm:p-6 font-black text-green-500 whitespace-nowrap">
+                      ৳{Number(item.total_amount || 0).toLocaleString()}
+                    </td>
+                    <td className="p-4 sm:p-6">
+                      <span className={`px-2.5 sm:px-3 py-1 rounded-full text-[7px] sm:text-[8px] font-black uppercase tracking-tighter border whitespace-nowrap ${
+                        item.status?.toLowerCase() === 'paid' 
+                          ? 'bg-green-500/10 border-green-500/30 text-green-400' 
+                          : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'
+                      }`}>
+                        {item.status || 'pending'}
+                      </span>
+                    </td>
+                    <td className="p-4 sm:p-6 text-[9px] sm:text-[10px] text-gray-500 whitespace-nowrap">
+                      {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className="p-4 sm:p-6 text-right">
+                      <button 
+                        onClick={() => handleViewDetails(item)}
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 bg-white/5 hover:bg-green-500 hover:text-black text-white text-[9px] sm:text-[10px] font-black uppercase rounded-xl transition-all whitespace-nowrap"
+                      >
+                        View / Report
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* POS CREATE INVOICE FULL MODAL */}
+      {/* ERP EXACT DESIGN INVOICE & DIGITAL SIGNATURE MODAL */}
+      {isDetailModalOpen && selectedInvoice && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white text-black w-full max-w-3xl rounded-[25px] sm:rounded-[30px] overflow-hidden flex flex-col max-h-[95vh] shadow-2xl">
+            
+            <div className="p-3 sm:p-4 bg-gray-100 border-b flex justify-between items-center shrink-0">
+              <span className="text-[9px] sm:text-[10px] font-black uppercase text-gray-500 tracking-widest">Official ERP Invoice Preview</span>
+              <button onClick={() => setIsDetailModalOpen(false)} className="text-black font-black text-sm bg-gray-200 hover:bg-red-500 hover:text-white w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all">✕</button>
+            </div>
+
+            <div className="p-5 sm:p-8 md:p-12 overflow-y-auto space-y-6 flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b-2 border-blue-900 pb-6">
+                <div>
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-blue-900 uppercase tracking-tighter">SEALAND AGRO</h1>
+                  <p className="text-[8px] sm:text-[9px] text-gray-500 uppercase font-bold tracking-wider mt-1">A COMMITMENT TO FRESHNESS!</p>
+                  <p className="text-[8px] sm:text-[9px] text-gray-500 mt-0.5">House # 3, Road # Nobinagar 16, Dhaka Uddan, Mohammadpur</p>
+                  <p className="text-[8px] sm:text-[9px] text-gray-500">Mobile: +8801714114396 | Email: sealandagro@gmail.com</p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-black uppercase tracking-widest text-gray-200">INVOICE</h2>
+                  <p className="text-[9px] sm:text-[10px] text-gray-500 mt-1">Date: {new Date(selectedInvoice.created_at).toLocaleDateString('en-GB')}</p>
+                  <p className="text-xs font-black text-blue-900 mt-0.5"># {selectedInvoice.invoice_number}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-between gap-4 border-b border-gray-100 pb-6">
+                <div>
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">BILL TO:</p>
+                  <h3 className="text-sm sm:text-base md:text-xl font-black uppercase text-blue-950">{selectedInvoice.customer_name}</h3>
+                </div>
+                <div className="sm:text-right">
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">CUSTOMER ADDRESS:</p>
+                  <p className="text-[10px] sm:text-[11px] font-bold text-gray-700 max-w-xs">{selectedInvoice.customer_address || 'Dhaka, Bangladesh'}</p>
+                </div>
+              </div>
+
+              <div>
+                <div className="bg-blue-900 text-white p-2.5 sm:p-3 rounded-none flex text-[8px] sm:text-[9px] font-black uppercase">
+                  <div className="w-10 sm:w-12 text-center">SL</div>
+                  <div className="flex-[3]">PRODUCT DESCRIPTION</div>
+                  <div className="flex-1 text-center">QTY</div>
+                  <div className="flex-1 text-right">UNIT PRICE</div>
+                  <div className="flex-1 text-right">TOTAL</div>
+                </div>
+
+                <div className="max-h-[200px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  {loadingDetails ? (
+                    <p className="text-center py-6 text-xs font-mono text-gray-400">Loading items...</p>
+                  ) : invoiceItems.length === 0 ? (
+                    <p className="text-center py-6 text-xs font-mono text-gray-400">No items found.</p>
+                  ) : (
+                    invoiceItems.map((prod, i) => (
+                      <div key={i} className="flex p-2.5 sm:p-3 border-b border-gray-100 text-[10px] sm:text-[11px] font-bold items-center">
+                        <div className="w-10 sm:w-12 text-center text-gray-500 font-mono">{i + 1}</div>
+                        <div className="flex-[3] uppercase text-gray-900 truncate pr-2">{prod.product_name}</div>
+                        <div className="flex-1 text-center font-mono">{prod.qty}</div>
+                        <div className="flex-1 text-right text-gray-600 font-mono">{prod.unit_price} TK</div>
+                        <div className="flex-1 text-right text-blue-950 font-black">{prod.total} TK</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-6 border-t-2 border-gray-100 flex flex-col md:flex-row justify-between items-end gap-6">
+                <div className="w-full md:w-2/3 bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-2">
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">In Words:</p>
+                  <p className="text-xs font-bold italic text-gray-800">
+                    {numberToWords(Number(selectedInvoice.total_amount || 0))}
+                  </p>
+                </div>
+
+                <div className="w-full md:w-1/3 text-right space-y-4">
+                  <div>
+                    <p className="text-[8px] sm:text-[9px] font-black text-gray-400 uppercase tracking-widest">Grand Total</p>
+                    <h2 className="text-3xl sm:text-4xl font-black italic text-blue-900 leading-none mt-1">
+                      {Number(selectedInvoice.total_amount || 0).toLocaleString()} <span className="text-xs sm:text-sm not-italic">TK</span>
+                    </h2>
+                  </div>
+
+                  <div className="pt-4 sm:pt-6 flex flex-col items-end">
+                    <div className="w-32 sm:w-36 border-b border-dashed border-gray-400 pb-1 mb-1 text-center">
+                      <span className="font-serif italic text-blue-950 font-bold text-xs sm:text-sm tracking-widest">Abdullah Al Noman</span>
+                    </div>
+                    <p className="text-[7px] sm:text-[8px] font-black text-gray-500 uppercase tracking-widest">Authorized Signature</p>
+                    <p className="text-[7px] text-green-600 font-bold mt-0.5">✔ Digitally Verified by SeaLand ERP</p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <div className="p-3 sm:p-4 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 shrink-0">
+              <button 
+                onClick={() => window.print()} 
+                className="flex-1 bg-blue-900 hover:bg-blue-800 text-white py-3 rounded-xl font-black uppercase text-[10px] sm:text-xs transition-all shadow-md text-center"
+              >
+                🖨️ Print / Download Official Invoice
+              </button>
+              <button 
+                onClick={() => setIsDetailModalOpen(false)} 
+                className="px-6 bg-gray-200 hover:bg-gray-300 text-black py-3 rounded-xl font-black uppercase text-[10px] sm:text-xs text-center"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col p-2 md:p-6 overflow-hidden">
-          
-          {/* Modal Header */}
-          <div className="flex justify-between items-center p-3 bg-[#111] rounded-2xl border border-white/10 mb-3">
-            <h2 className="text-green-500 font-black italic uppercase text-sm md:text-lg tracking-tighter">
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col p-2 sm:p-4 md:p-6 overflow-hidden">
+          <div className="flex justify-between items-center p-3 bg-[#111] rounded-2xl border border-white/10 mb-3 shrink-0">
+            <h2 className="text-green-500 font-black italic uppercase text-xs sm:text-sm md:text-lg tracking-tighter">
               B2B POS & Billing Console
             </h2>
             <button 
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-xl text-xs font-black uppercase transition-all"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-xl text-[10px] font-black uppercase transition-all"
             >
               Close [✕]
             </button>
           </div>
 
-          <div className="flex flex-col md:flex-row flex-1 bg-black text-white overflow-hidden rounded-[25px] border border-white/10">
+          <div className="flex flex-col md:flex-row flex-1 bg-black text-white overflow-hidden rounded-[20px] sm:rounded-[25px] border border-white/10 h-[calc(100vh-100px)]">
             
-            {/* মোবাইল নেভিগেশন */}
-            <div className="md:hidden bg-[#111] border-b border-white/10 flex justify-around p-2">
+            <div className="md:hidden bg-[#111] border-b border-white/10 flex justify-around p-2 shrink-0">
               <button onClick={() => setPosTab('inventory')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase ${posTab === 'inventory' ? 'bg-green-500 text-black' : 'text-gray-400'}`}>
                 📦 Stock List
               </button>
@@ -259,32 +442,30 @@ export default function OrderHistory() {
               </button>
             </div>
 
-            {/* বাম পাশ: Inventory */}
-            <div className={`${posTab === 'inventory' ? 'flex' : 'hidden'} md:flex md:w-1/3 border-r border-white/10 flex-col p-4 bg-[#0A0A0A] h-full`}>
-              <h3 className="text-gray-400 font-bold uppercase text-[10px] mb-3 tracking-widest">Select Items</h3>
+            <div className={`${posTab === 'inventory' ? 'flex' : 'hidden'} md:flex md:w-1/3 border-r border-white/10 flex-col p-4 bg-[#0A0A0A] h-full overflow-hidden`}>
+              <h3 className="text-gray-400 font-bold uppercase text-[10px] mb-3 tracking-widest shrink-0">Select Items</h3>
               <input 
                 type="text" 
                 placeholder="Search products..." 
-                className="w-full bg-white/5 border border-white/10 p-3 rounded-xl outline-none focus:border-green-500 text-xs mb-4 text-white" 
+                className="w-full bg-white/5 border border-white/10 p-3 rounded-xl outline-none focus:border-green-500 text-xs mb-4 text-white shrink-0" 
                 onChange={(e) => setSearchTerm(e.target.value)} 
               />
-              <div className="flex-1 overflow-y-auto space-y-2 no-scrollbar pr-1">
+              <div className="flex-1 overflow-y-auto space-y-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pr-1">
                 {products.filter(p => p.name_en?.toLowerCase().includes(searchTerm.toLowerCase())).map(product => (
-                  <div key={product.id} className="bg-white/5 p-3 rounded-2xl flex justify-between items-center border border-white/5 hover:bg-white/10 transition-all">
-                    <div className="flex-1">
-                      <p className="text-[11px] font-black uppercase text-gray-300">{product.name_en}</p>
+                  <div key={product.id} className="bg-white/5 p-3 rounded-2xl flex justify-between items-center border border-white/5 hover:bg-white/10 transition-all gap-2">
+                    <div className="flex-1 truncate">
+                      <p className="text-[11px] font-black uppercase text-gray-300 truncate">{product.name_en}</p>
                       <p className="text-green-400 font-black text-xs">৳{product.b2b_price || product.price}</p>
                     </div>
-                    <button onClick={() => addToCart(product)} className="bg-green-600 hover:bg-green-500 text-white w-8 h-8 rounded-xl flex items-center justify-center font-bold text-lg">+</button>
+                    <button onClick={() => addToCart(product)} className="bg-green-600 hover:bg-green-500 text-white w-8 h-8 rounded-xl flex items-center justify-center font-bold text-lg shrink-0">+</button>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* ডান পাশ: Billing Receipt */}
-            <div className={`${posTab === 'billing' ? 'flex' : 'hidden'} md:flex flex-1 bg-white flex-col m-1 md:m-3 rounded-[25px] overflow-hidden text-black h-full`}>
+            <div className={`${posTab === 'billing' ? 'flex' : 'hidden'} md:flex flex-1 bg-white flex-col m-1 md:m-3 rounded-[20px] sm:rounded-[25px] overflow-hidden text-black h-full`}>
               <div className="p-4 md:p-8 flex-1 flex flex-col overflow-hidden">
-                <div className="flex justify-between items-start mb-4">
+                <div className="flex justify-between items-start mb-4 shrink-0">
                   <div>
                     <h1 className="text-xl md:text-2xl font-black italic text-green-900 uppercase">Sealand Agro</h1>
                     <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">A Commitment to Freshness</p>
@@ -292,9 +473,9 @@ export default function OrderHistory() {
                   <div className="bg-gray-100 px-3 py-1 rounded-full text-[9px] font-black text-green-900">{new Date().toLocaleDateString('en-GB')}</div>
                 </div>
 
-                <div className="bg-green-50/50 p-3 rounded-2xl mb-4 border border-green-100/50">
+                <div className="bg-green-50/50 p-3 rounded-2xl mb-4 border border-green-100/50 shrink-0">
                   <p className="text-[8px] uppercase font-black text-green-600 mb-1 tracking-widest">Customer Details:</p>
-                  <h3 className="font-black text-xs md:text-lg uppercase italic text-green-950 mb-2 leading-none">
+                  <h3 className="font-black text-xs md:text-lg uppercase italic text-green-950 mb-2 leading-none truncate">
                     {user?.user_metadata?.full_name || 'B2B Partner'}
                   </h3>
                   <div className="relative">
@@ -310,19 +491,25 @@ export default function OrderHistory() {
                 </div>
 
                 <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="bg-green-900 text-white p-2.5 rounded-xl flex text-[8px] font-black uppercase mb-3">
+                  <div className="bg-green-900 text-white p-2.5 rounded-xl flex text-[8px] font-black uppercase mb-3 shrink-0">
                     <div className="flex-[3]">Description</div>
                     <div className="flex-1 text-center">Qty</div>
                     <div className="flex-1 text-right">Total</div>
                     <div className="w-6"></div>
                   </div>
-                  <div className="flex-1 overflow-y-auto space-y-1.5 no-scrollbar">
+                  <div className="flex-1 overflow-y-auto space-y-1.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {cart.map((item) => (
-                      <div key={item.id} className="flex p-2 border-b border-gray-100 text-[10px] font-bold items-center">
+                      <div key={item.id} className="flex p-2 border-b border-gray-100 text-[10px] font-bold items-center gap-2">
                         <div className="flex-[3] uppercase text-green-950 truncate">{item.name_en}</div>
-                        <div className="flex-1 flex justify-center items-center gap-2">
+                        <div className="flex-1 flex justify-center items-center gap-1">
                           <button onClick={() => updateQuantity(item.id, item.qty - 1)} className="text-gray-400 font-bold px-1">-</button>
-                          <span className="bg-gray-100 px-2 py-0.5 rounded italic text-[9px]">{item.qty}</span>
+                          <input 
+                            type="number" 
+                            min="1" 
+                            value={item.qty} 
+                            onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                            className="w-10 bg-gray-100 text-center py-0.5 rounded text-[10px] font-black outline-none border border-transparent focus:border-green-500"
+                          />
                           <button onClick={() => updateQuantity(item.id, item.qty + 1)} className="text-gray-400 font-bold px-1">+</button>
                         </div>
                         <div className="flex-1 text-right text-green-900 font-black">৳{item.qty * item.active_price}</div>
@@ -332,80 +519,27 @@ export default function OrderHistory() {
                   </div>
                 </div>
 
-                <div className="mt-3 pt-3 border-t-2 border-dashed border-gray-100">
+                <div className="mt-3 pt-3 border-t-2 border-dashed border-gray-100 shrink-0">
                   <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Payable</p>
-                  <h2 className="text-3xl md:text-5xl font-black italic text-green-900 leading-none">৳{totalAmount.toLocaleString()}</h2>
+                  <h2 className="text-2xl sm:text-3xl md:text-5xl font-black italic text-green-900 leading-none">৳{totalAmount.toLocaleString()}</h2>
                 </div>
               </div>
 
-              <div className="p-3 bg-gray-50 border-t flex gap-2">
+              <div className="p-3 bg-gray-50 border-t flex flex-col sm:flex-row gap-2 shrink-0">
                 <button 
                   onClick={handleFinalizeAndSave} 
                   disabled={savingInvoice} 
-                  className="flex-[2] bg-black text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-gray-800 disabled:opacity-50"
+                  className="w-full sm:flex-[2] bg-black text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-gray-800 disabled:opacity-50 text-center"
                 >
                   {savingInvoice ? 'SAVING...' : 'CONFIRM B2B ORDER'}
                 </button>
-                <button onClick={() => window.print()} className="flex-1 bg-green-600 text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px]">Print</button>
+                <button onClick={() => window.print()} className="w-full sm:flex-1 bg-green-600 text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] text-center">Print</button>
               </div>
             </div>
 
           </div>
         </div>
       )}
-
-      {/* INVOICES LIST TABLE */}
-      <div className="overflow-x-auto border border-white/5 rounded-[25px] bg-white/[0.01]">
-        {loading ? (
-          <div className="p-10 text-center text-gray-500 text-[10px] uppercase tracking-widest">
-            Syncing with SeaLand ERP...
-          </div>
-        ) : invoices.length === 0 ? (
-          <div className="p-10 text-center text-gray-500 text-[10px] uppercase tracking-widest leading-loose">
-            No records found for your account. <br/>
-            <span className="text-[8px] opacity-50">Click "+ CREATE INVOICE" above to add your first entry.</span>
-          </div>
-        ) : (
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-white/5 text-[9px] uppercase font-black tracking-widest text-gray-500 border-b border-white/5">
-              <tr>
-                <th className="p-5 md:p-6 whitespace-nowrap">Invoice No.</th>
-                <th className="p-5 md:p-6">Customer / Outlet</th>
-                <th className="p-5 md:p-6">Total Amount</th>
-                <th className="p-5 md:p-6">Status</th>
-                <th className="p-5 md:p-6">Date</th>
-              </tr>
-            </thead>
-            <tbody className="text-[12px] font-medium">
-              {invoices.map((item) => (
-                <tr key={item.id} className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
-                  <td className="p-5 md:p-6 font-mono text-gray-300">
-                    {item.invoice_number || `#INV-${item.id}`}
-                  </td>
-                  <td className="p-5 md:p-6 font-bold text-white">
-                    {item.customer_name || 'N/A'}
-                  </td>
-                  <td className="p-5 md:p-6 font-black text-green-500">
-                    ৳{Number(item.total_amount || 0).toLocaleString()}
-                  </td>
-                  <td className="p-5 md:p-6">
-                    <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter border ${
-                      item.status?.toLowerCase() === 'paid' 
-                        ? 'bg-green-500/10 border-green-500/30 text-green-400' 
-                        : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'
-                    }`}>
-                      {item.status || 'pending'}
-                    </span>
-                  </td>
-                  <td className="p-5 md:p-6 text-[10px] text-gray-500">
-                    {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
 
     </div>
   );
