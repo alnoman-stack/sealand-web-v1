@@ -78,8 +78,11 @@ export default function B2BPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center font-mono text-xs uppercase text-gray-400 animate-pulse">
-        Checking Portal Access...
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center font-mono text-xs uppercase text-gray-400 space-y-4">
+        <div className="animate-pulse">Checking Portal Access...</div>
+        <Link href="/" className="text-[10px] text-green-600 hover:underline font-bold">
+          ← হোমপেজে ফিরে যান
+        </Link>
       </div>
     );
   }
@@ -87,13 +90,13 @@ export default function B2BPage() {
   if (isLoggedIn && existingRequest) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6 font-sans">
-        <div className="text-center p-10 bg-white rounded-[3rem] shadow-xl max-w-md border border-gray-100">
+        <div className="text-center p-10 bg-white rounded-[3rem] shadow-xl max-w-md border border-gray-100 w-full relative">
           <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto text-2xl font-black mb-4">
             ℹ
           </div>
           <h2 className="text-2xl font-black text-gray-900 uppercase">আবেদন ইতিমধ্যে জমা আছে</h2>
           <p className="mt-3 text-xs text-gray-600 leading-relaxed">
-            আপনার প্রতিষ্ঠান <span className="font-bold text-gray-900">{existingRequest.company_name}</span>-এর পক্ষ থেকে বিটুবি রিকোয়েস্ট পাঠানো হয়েছে। 
+            আপনার প্রতিষ্ঠান <span className="font-bold text-gray-900">{existingRequest.company_name}</span>-এর পক্ষ থেকে বিটুবি রিকোয়েস্ট পাঠানো হয়েছে। 
           </p>
           <div className="mt-4 p-3 bg-gray-50 rounded-2xl text-[11px] font-mono text-gray-500 uppercase">
             Status: <span className="text-yellow-600 font-bold">{existingRequest.status}</span>
@@ -101,6 +104,11 @@ export default function B2BPage() {
           <Link href="/dashboard" className="mt-6 inline-block bg-gray-900 hover:bg-green-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg transition-all w-full">
             ড্যাশবোর্ডে যান →
           </Link>
+          <div className="mt-4">
+            <Link href="/" className="text-xs text-gray-500 hover:text-gray-900 font-bold uppercase tracking-wider">
+              ← হোমপেজে ফিরে যান
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -109,7 +117,7 @@ export default function B2BPage() {
   if (submitted) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6 font-sans">
-        <div className="text-center p-10 bg-white rounded-[3rem] shadow-xl max-w-md border border-gray-100">
+        <div className="text-center p-10 bg-white rounded-[3rem] shadow-xl max-w-md border border-gray-100 w-full">
           <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-2xl font-black mb-4">
             ✓
           </div>
@@ -123,17 +131,27 @@ export default function B2BPage() {
           >
             Create Account Now →
           </Link>
-          <Link href="/" className="mt-4 inline-block text-[10px] text-gray-400 hover:text-gray-900 font-bold uppercase tracking-wider">
-            হোমপেজে ফিরে যান
-          </Link>
+          <div className="mt-4">
+            <Link href="/" className="text-xs text-gray-500 hover:text-gray-900 font-bold uppercase tracking-wider">
+              ← হোমপেজে ফিরে যান
+            </Link>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6 font-sans">
-      <div className="bg-white p-8 md:p-12 rounded-[3.5rem] shadow-xl max-w-xl w-full border border-gray-100">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6 font-sans relative">
+      <div className="bg-white p-8 md:p-12 rounded-[3.5rem] shadow-xl max-w-xl w-full border border-gray-100 relative">
+        
+        {/* ব্যাক বা হোম বাটন */}
+        <div className="mb-6">
+          <Link href="/" className="inline-flex items-center text-xs font-bold text-gray-500 hover:text-green-600 transition-colors uppercase tracking-wider">
+            ← Back to Home
+          </Link>
+        </div>
+
         <h1 className="text-3xl font-black text-gray-900 mb-2 uppercase">B2B Partnership</h1>
         <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-8">SeaLand Agro B2B Procurement Portal</p>
         
