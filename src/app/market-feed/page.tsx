@@ -60,11 +60,42 @@ export default function MarketFeedPage() {
     setFilteredItems(result);
   }, [searchTerm, selectedCategory, items]);
 
+  const currentDate = new Date().toLocaleDateString('bn-BD', {
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric'
+  });
+
+  // পিসি এবং মোবাইলের জন্য সমন্বিত প্রিন্ট ও পিডিএফ ডাউনলোড হ্যান্ডলার
+  const handlePrintOrDownload = async () => {
+    // মোবাইল ডিভাইস শনাক্ত করার জন্য
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      const element = document.getElementById('pdf-printable-area');
+      if (!element) return;
+
+      // মোবাইলের জন্য html2pdf ব্যবহার করে সরাসরি পিডিএফ ডাউনলোড
+      const html2pdf = (await import('html2pdf.js')).default;
+      const opt = {
+        margin:       5,
+        filename:     'SeaLand-Agro-Price-List.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      html2pdf().from(element).set(opt).save();
+    } else {
+      // পিসির জন্য আগের মতো স্ট্যান্ডার্ড window.print()
+      window.print();
+    }
+  };
+
   return (
     <div className="h-screen bg-[#030303] text-white font-sans flex flex-col overflow-hidden">
       
-      {/* ফিক্সড ড্যাশবোর্ড থিমড হেডার ও ফিল্টার সেকশন (স্ক্রল হবে না) */}
-      <div className="flex-shrink-0 bg-[#080808]/95 backdrop-blur-2xl border-b border-white/10 px-4 sm:px-6 md:px-10 py-5 space-y-4 shadow-2xl z-50">
+      {/* ১. ফিক্সড ড্যাশবোর্ড থিমড হেডার ও ফিল্টার সেকশন (স্ক্রিন মোডে থাকবে, প্রিন্টে হাইড হবে) */}
+      <div className="flex-shrink-0 bg-[#080808]/95 backdrop-blur-2xl border-b border-white/10 px-4 sm:px-6 md:px-10 py-5 space-y-4 shadow-2xl z-50 print:hidden">
         <div className="max-w-7xl w-full mx-auto space-y-4">
           
           {/* টপ স্পেশাল ব্যাজ ও হেডার */}
@@ -80,6 +111,14 @@ export default function MarketFeedPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* প্রিন্ট বা পিডিএফ ডাউনলোড বাটন */}
+              <button 
+                onClick={handlePrintOrDownload}
+                className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>📄</span> Price List PDF
+              </button>
+
               <Link href="/dashboard">
                 <button className="px-5 py-2.5 bg-green-500 hover:bg-white text-black rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg">
                   📊 ERP Dashboard
@@ -126,8 +165,8 @@ export default function MarketFeedPage() {
         </div>
       </div>
 
-      {/* শুধু কার্ড সেকশনটি স্ক্রল হবে এবং কোনো স্ক্রলবার দৃশ্যমান থাকবে না */}
-      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] p-4 sm:p-6 md:p-10">
+      {/* ২. মূল গ্রিড সেকশন (স্ক্রিন মোডে স্ক্রল হবে, প্রিন্ট করার সময় হাইড থাকবে) */}
+      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] p-4 sm:p-6 md:p-10 print:hidden">
         <div className="max-w-7xl w-full mx-auto">
           {loading ? (
             <div className="py-24 text-center text-green-500 font-mono font-bold tracking-[0.3em] text-xs animate-pulse">
@@ -216,6 +255,90 @@ export default function MarketFeedPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ৩. প্রিন্ট বা পিডিএফ লেআউট (এখানে id="pdf-printable-area" যুক্ত করা হয়েছে যাতে মোবাইল ও পিসি উভয় মাধ্যমেই ডাটা রেন্ডার হয়) */}
+      <div id="pdf-printable-area" className="hidden print:block bg-white text-black p-4 font-sans text-xs">
+        
+        {/* লোগো, কোম্পানি নাম, মোবাইল ও অ্যাড্রেস এবং ডানপাশে QR Code (উপরে) */}
+        <div className="border-b-2 border-[#5B8C00] pb-2 mb-3 flex justify-between items-center">
+          
+          {/* বামপাশে লোগো ও ব্র্যান্ড নাম */}
+          <div className="flex items-center gap-2.5">
+            <img 
+              src="/final.png" 
+              alt="SeaLand Agro Logo" 
+              onError={(e) => { (e.target as HTMLImageElement).src = '/icon.png'; }}
+              className="w-12 h-12 object-contain" 
+            />
+            <div>
+              <h1 className="text-xl font-black italic text-[#102C57] tracking-tight m-0 leading-tight">SeaLand Agro</h1>
+              <p className="text-[8.5px] italic text-gray-500 m-0">A commitment to freshness.</p>
+              <p className="text-[8px] font-bold text-green-700 m-0 mt-0.5">CELL: 01714-114396</p>
+            </div>
+          </div>
+          
+          {/* মাঝখানে ঠিকানা */}
+          <div className="text-center text-[8px] font-bold text-gray-700 max-w-[220px]">
+            <p className="m-0">HOUSE # 3, ROAD NOBINAGAR # 16, DHAKA UDDAYAN, MOHAMMADPUR, DHAKA</p>
+            <p className="m-0 text-gray-500">sealandagro@gmail.com | www.sealandagro.com</p>
+          </div>
+
+          {/* ডানপাশে QR Code (App Download Link) */}
+          <div className="flex flex-col items-center border border-gray-300 p-1 rounded bg-gray-50">
+            <img 
+              src="/qr.png" 
+              alt="Scan to Download App" 
+              onError={(e) => { (e.target as HTMLImageElement).src = '/Untitled.png'; }}
+              className="w-12 h-12 object-contain" 
+            />
+            <span className="text-[7px] font-black text-gray-700 uppercase tracking-tighter mt-0.5">
+              Scan for Android App
+            </span>
+          </div>
+
+        </div>
+
+        {/* তারিখের হেডার */}
+        <div className="text-center mb-3">
+          <span className="text-xs font-bold bg-gray-100 px-3 py-1 rounded border border-gray-300">
+            {currentDate} তারিখের মূল্য তালিকা।
+          </span>
+        </div>
+
+        {/* ক্যাটাগরি অনুযায়ী টেবিল লুপ */}
+        {['LOCAL', 'CHINESE & LOCAL', 'FRUITS', 'CHINESE', 'FISH', 'FROZEN'].map((catName) => {
+          const categoryItems = filteredItems.filter(i => (i.category || 'LOCAL').toUpperCase() === catName);
+          if (categoryItems.length === 0) return null;
+
+          return (
+            <div key={catName} className="mb-4">
+              <table className="w-full border-collapse border border-black text-[11px]">
+                <thead>
+                  <tr className="bg-[#A4C639] text-white text-left">
+                    <th className="border border-black px-1.5 py-1 w-10 text-center font-bold">Sl.No</th>
+                    <th className="border border-black px-2 py-1 font-bold uppercase">{catName} Commodities</th>
+                    <th className="border border-black px-2 py-1 w-20 text-right font-bold">Price</th>
+                    <th className="border border-black px-1.5 py-1 w-16 text-center font-bold">Per</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categoryItems.map((item, index) => (
+                    <tr key={item.id} className="border-b border-gray-300">
+                      <td className="border border-black px-1 py-0.5 text-center font-mono">{String(index + 1).padStart(2, '0')}</td>
+                      <td className="border border-black px-2 py-0.5 font-medium">{item.name_en}</td>
+                      <td className="border border-black px-2 py-0.5 text-right font-bold">
+                        {item.current_stock === 0 ? <span className="text-red-600 italic">Stock out</span> : `৳${item.b2b_price || item.price}`}
+                      </td>
+                      <td className="border border-black px-1 py-0.5 text-center uppercase text-[10px]">{item.unit || 'KG'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+
       </div>
 
     </div>
